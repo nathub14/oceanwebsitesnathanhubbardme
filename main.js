@@ -324,13 +324,17 @@
     })();
     scene.add(rays);
 
-    // ---- MARINE SNOW (two parallax layers spanning the column) ----
-    function snow(count, color, size, opacity, spread, zBase = -2, zSpread = 30) {
+    // ---- MARINE SNOW — dense, banded, camera-following particulate.
+    // Particles live in a vertical band around the camera and wrap, so the
+    // water stays full of suspended matter at every depth. Closer layers drift
+    // faster (parallax) — the upward streaming is the main "sinking" cue.
+    const BAND = 80;                                  // vertical extent of each layer
+    function snow(count, color, size, opacity, spread, zBase, zSpread, drift) {
       const geo = new THREE.BufferGeometry();
       const pos = new Float32Array(count * 3);
       for (let i = 0; i < count; i++) {
         pos[i*3]   = (Math.random() - 0.5) * spread;
-        pos[i*3+1] = 6 - Math.random() * (DEPTH + 18);
+        pos[i*3+1] = (Math.random() - 0.18) * BAND;   // band biased above-centre
         pos[i*3+2] = zBase - Math.random() * zSpread;
       }
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -338,12 +342,20 @@
         sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false, map: glowTex });
       const pts = new THREE.Points(geo, mat);
       scene.add(pts);
-      return { pts, pos: geo.attributes.position };
+      return { pts, pos: geo.attributes.position, drift, spread };
     }
-    const snowA = snow(isMobile ? 320 : 760, 0xbfe6f0, 0.42, 0.55, 60);          // mid drift
-    const snowB = snow(isMobile ? 140 : 320, 0x9fe8e0, 0.7, 0.4, 46);            // sparser, bio-tinted
-    const bokeh = snow(isMobile ? 16 : 34, 0xd2ecf4, 4.6, 0.14, 30, -0.5, 6);    // close, soft, out-of-focus
-    const snowLayers = [snowA, snowB, bokeh];
+    const m = isMobile ? 0.42 : 1;
+    const snowLayers = [
+      snow(Math.round(1300*m), 0x8fbccd, 0.55, 0.45, 130, -20, 46, 0.22),  // far haze, wide
+      snow(Math.round(820*m),  0xcfe9f2, 0.95, 0.70, 78,  -7,  26, 0.45),  // mid marine snow
+      snow(Math.round(300*m),  0xe9f6fb, 1.9,  0.68, 46,  -2,  9,  0.8),   // near flecks
+      snow(Math.round(36*m),   0xd6eef6, 6.0,  0.16, 30,  -0.4,5,  1.25),  // foreground bokeh
+    ];
+    // bioluminescent plankton — close + bright so deep fog can't swallow it;
+    // faded in with depth so the sunlit zones stay clean.
+    const plankton = snow(Math.round(680*m), 0x79f0dc, 0.8, 0.0, 34, -1, 8, 0.5);
+    plankton.bioGlow = true;
+    snowLayers.push(plankton);
 
     // ---- helper: emissive porthole / instrument light ----
     function lamp(parent, color, x, y, z, r, lightIntensity) {
@@ -363,6 +375,7 @@
 
     const pulsers = [];   // emissive things that breathe
     const swayers = [];   // things that drift on sin
+    const envUpdaters = []; // per-frame environment animations: fn(t, dt, camY)
 
     // ---- ABOUT — the submersible ----
     const sub = new THREE.Group();
@@ -417,18 +430,143 @@
     }
     scene.add(jellies);
 
-    // ---- scattered distant bioluminescence through twilight + midnight ----
+    // ---- scattered bioluminescence spanning twilight → hadal (fills the dark) ----
     const bioField = new THREE.Group();
-    const bioColors = [0x73f0d8, 0x5fd0e0, 0x66ff9c, 0x8fb7ff];
-    for (let i = 0; i < (isMobile ? 10 : 20); i++) {
+    const bioColors = [0x73f0d8, 0x5fd0e0, 0x66ff9c, 0x8fb7ff, 0x59e0c8];
+    for (let i = 0; i < (isMobile ? 24 : 50); i++) {
       const col = bioColors[(Math.random() * bioColors.length) | 0];
-      const sc = 1.6 + Math.random() * 3.4;
-      const s = glow(col, sc, 0.5);
-      s.position.set((Math.random() - 0.5) * 38, yAt(0.2 + Math.random() * 0.55), -7 - Math.random() * 22);
+      const sc = 1.8 + Math.random() * 4.2;
+      const s = glow(col, sc, 0.6);
+      s.position.set((Math.random() - 0.5) * 50, yAt(0.22 + Math.random() * 0.74), -4 - Math.random() * 13);
       bioField.add(s);
-      pulsers.push({ glow: s, base: sc, amp: 0.4 + Math.random() * 0.4, sp: 0.5 + Math.random() * 1.4, ph: i * 0.7 });
+      pulsers.push({ glow: s, base: sc, amp: 0.4 + Math.random() * 0.45, sp: 0.4 + Math.random() * 1.5, ph: i * 0.7 });
     }
     scene.add(bioField);
+
+    // ---- FISH SCHOOLS — dark silhouettes drifting through the light zones ----
+    function createSchool(count, baseY, zBase, dir, speed, color) {
+      const geo = new THREE.ConeGeometry(0.16, 0.6, 5);
+      geo.rotateZ(dir > 0 ? -Math.PI / 2 : Math.PI / 2);   // nose points along travel
+      const mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0.55, depthWrite: false }), count);
+      mesh.frustumCulled = false;
+      const fish = [];
+      for (let i = 0; i < count; i++) fish.push({
+        ox: (Math.random() - 0.5) * 26, oy: (Math.random() - 0.5) * 7,
+        oz: (Math.random() - 0.5) * 12, ph: Math.random() * Math.PI * 2,
+        wob: 0.4 + Math.random() * 0.6,
+      });
+      scene.add(mesh);
+      const dummy = new THREE.Object3D();
+      const span = 60;
+      envUpdaters.push((t) => {
+        const drift = ((t * speed) % span + span) % span;                 // 0..span
+        for (let i = 0; i < count; i++) {
+          const f = fish[i];
+          let x = f.ox + dir * (drift - span / 2);
+          // wrap within the school window so it streams continuously
+          if (x > 30) x -= span; else if (x < -30) x += span;
+          const y = baseY + f.oy + Math.sin(t * 1.6 + f.ph) * 0.5;
+          dummy.position.set(x, y, zBase + f.oz);
+          dummy.rotation.z = Math.sin(t * 6 + f.ph) * 0.25 * f.wob;        // tail wobble
+          dummy.scale.setScalar(0.8 + 0.4 * Math.sin(f.ph));
+          dummy.updateMatrix();
+          mesh.setMatrixAt(i, dummy.matrix);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+      });
+      return mesh;
+    }
+    if (!isMobile) {
+      createSchool(40, yAt(0.10), -16, 1, 1.4, 0x0c2433);   // sunlight, far, drifting right
+      createSchool(28, yAt(0.20), -22, -1, 1.0, 0x0a2030);  // sunlight/twilight, distant left
+      createSchool(34, yAt(0.30), -11, 1, 1.9, 0x0e2a3a);   // twilight, nearer
+    } else {
+      createSchool(20, yAt(0.16), -16, 1, 1.4, 0x0c2433);
+    }
+
+    // ---- DISTANT GIANT — a whale silhouette glides across the twilight (scale) ----
+    {
+      const whale = new THREE.Group();
+      const wMat = new THREE.MeshBasicMaterial({ color: 0x09202c, transparent: true, opacity: 0.5, depthWrite: false });
+      const bodyW = new THREE.Mesh(new THREE.SphereGeometry(3.4, 20, 14), wMat);
+      bodyW.scale.set(4.2, 1, 1.3); whale.add(bodyW);
+      const fluke = new THREE.Mesh(new THREE.SphereGeometry(2.2, 8, 6), wMat);
+      fluke.scale.set(0.5, 1.4, 0.2); fluke.position.set(-14, 0, 0); whale.add(fluke);
+      const finW = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6), wMat);
+      finW.scale.set(1.6, 0.3, 0.6); finW.position.set(2, -1.6, 1.5); finW.rotation.z = -0.5; whale.add(finW);
+      whale.position.set(0, yAt(0.34), -48);
+      scene.add(whale);
+      const wSpan = 150;
+      envUpdaters.push((t) => {
+        let x = ((t * 1.1) % wSpan) - wSpan / 2;        // very slow glide across the deep distance
+        whale.position.x = x;
+        whale.position.y = yAt(0.34) + Math.sin(t * 0.18) * 2;
+        whale.rotation.z = Math.sin(t * 0.2) * 0.05;
+      });
+    }
+
+    // ---- SIPHONOPHORES — drifting bioluminescent chains in the deep ----
+    for (let s = 0; s < (isMobile ? 3 : 7); s++) {
+      const chain = new THREE.Group();
+      const beads = 5 + ((Math.random() * 5) | 0);
+      const col = [0x66ffd0, 0x7fd8ff, 0x9affc0][s % 3];
+      for (let b = 0; b < beads; b++) {
+        const g = glow(col, 1.1 + Math.random() * 0.6, 0.7);
+        g.position.y = -b * (0.5 + Math.random() * 0.3);
+        chain.add(g);
+        pulsers.push({ glow: g, base: g.scale.x, amp: 0.5, sp: 1.4, ph: b * 0.5 + s });
+      }
+      chain.position.set((Math.random() - 0.5) * 42, yAt(0.5 + Math.random() * 0.42), -5 - Math.random() * 11);
+      scene.add(chain);
+      swayers.push({ obj: chain, baseX: chain.position.x, ax: 1.2, ay: 0.6, sp: 0.18 + Math.random() * 0.16, ph: s });
+    }
+
+    // ---- VOLUME GLOW — large, faint halos that give the black water an
+    // illuminated, murky sense of volume (not just empty void) ----
+    for (let i = 0; i < (isMobile ? 5 : 11); i++) {
+      const col = [0x1c5a66, 0x244e6e, 0x2a6a64][i % 3];
+      const g = glow(col, 12 + Math.random() * 12, 0.16);
+      g.position.set((Math.random() - 0.5) * 40, yAt(0.42 + Math.random() * 0.56), -7 - Math.random() * 9);
+      scene.add(g);
+      pulsers.push({ glow: g, base: g.scale.x, amp: 0.18, sp: 0.25 + Math.random() * 0.3, ph: i });
+    }
+
+    // ---- DEEP CREATURES — hero bioluminescent jellies through midnight→hadal,
+    // dense enough that a large, close, lit form fills frame at any deep depth,
+    // alternating sides to fill the space opposite the text ----
+    const deepJellySpec = [
+      { p: 0.56, x:  9,  col: 0x59e6d0, scale: 2.2 },
+      { p: 0.61, x: -11, col: 0x7fc8ff, scale: 1.7 },
+      { p: 0.66, x:  10, col: 0x66ffc0, scale: 2.0 },
+      { p: 0.71, x: -10, col: 0x6fd8ff, scale: 1.8 },
+      { p: 0.76, x:  11, col: 0x59e6d0, scale: 2.3 },
+      { p: 0.81, x: -9,  col: 0x8affd0, scale: 1.7 },
+      { p: 0.86, x:  10, col: 0x6fd8ff, scale: 2.1 },
+      { p: 0.92, x: -10, col: 0x7fffd8, scale: 1.9 },
+    ];
+    for (const spec of (isMobile ? deepJellySpec.filter((_, i) => i % 2 === 0) : deepJellySpec)) {
+      const j = new THREE.Group();
+      const bellR = 1.1;
+      const bell = new THREE.Mesh(
+        new THREE.SphereGeometry(bellR, 22, 14, 0, Math.PI * 2, 0, Math.PI * 0.55),
+        new THREE.MeshStandardMaterial({ color: 0x16344a, emissive: new THREE.Color(spec.col),
+          emissiveIntensity: 1.3, transparent: true, opacity: 0.6, roughness: 0.35, side: THREE.DoubleSide }));
+      j.add(bell); rim(bell, 0xbafff0, 1.4, 1.05);
+      const tpts = [];
+      for (let k = 0; k < 7; k++) tpts.push(
+        new THREE.Vector3((Math.random() - 0.5) * bellR, -0.2, (Math.random() - 0.5) * bellR),
+        new THREE.Vector3((Math.random() - 0.5) * bellR * 1.6, -2.2 - Math.random() * 1.2, (Math.random() - 0.5) * bellR * 1.6));
+      j.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(tpts),
+        new THREE.LineBasicMaterial({ color: spec.col, transparent: true, opacity: 0.45 })));
+      const core = glow(spec.col, 4.4, 0.6); core.position.y = -0.2; j.add(core);
+      j.add(new THREE.PointLight(spec.col, 0.9, 16, 2));
+      j.scale.setScalar(spec.scale);
+      j.position.set(spec.x, yAt(spec.p), -8);
+      scene.add(j);
+      pulsers.push({ glow: core, base: core.scale.x, amp: 0.5, sp: 0.7 + Math.random() * 0.4, ph: spec.p * 10 });
+      swayers.push({ obj: j, baseX: spec.x, ax: 1.1, ay: 0.7, sp: 0.16 + Math.random() * 0.12, ph: spec.p * 7 });
+    }
 
     // ---- PROJECTS — the wreck with lit portholes ----
     const wreck = new THREE.Group();
@@ -522,21 +660,31 @@
       }
       geo.computeVertexNormals();
       const floor = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-        color: 0x05121a, roughness: 1, metalness: 0, flatShading: true }));
-      floor.position.set(0, yAt(1) - 6, -8);
+        color: 0x07161f, roughness: 1, metalness: 0, flatShading: true,
+        emissive: 0x040d14, emissiveIntensity: 0.5 }));
+      const floorY = yAt(1) - 4.5;
+      floor.position.set(0, floorY, -8);
       scene.add(floor);
-      const fl = new THREE.PointLight(0x2f7f8a, 0.8, 70, 2);
-      fl.position.set(0, yAt(1) + 4, -2); scene.add(fl);
+      const fl = new THREE.PointLight(0x3f95a0, 1.5, 80, 2);
+      fl.position.set(0, floorY + 8, 0); scene.add(fl);
+      // settled bioluminescence on the seafloor — the arrival
+      for (let i = 0; i < (isMobile ? 8 : 18); i++) {
+        const col = [0x66ffd0, 0x7fd8ff, 0x59e6c8][i % 3];
+        const g = glow(col, 1.6 + Math.random() * 2.4, 0.6);
+        g.position.set((Math.random() - 0.5) * 40, floorY + 1.2 + Math.random() * 4, -3 - Math.random() * 14);
+        scene.add(g);
+        pulsers.push({ glow: g, base: g.scale.x, amp: 0.45, sp: 0.5 + Math.random() * 1.2, ph: i });
+      }
     }
 
     /* ---- colour-grade stops by depth ---- */
     const grade = [
       { p: 0.00, bg: new THREE.Color(0x2c8aa2), fog: 0.0048, amb: new THREE.Color(0x86cdda), ai: 0.78, key: 1.5 },
       { p: 0.16, bg: new THREE.Color(0x14587a), fog: 0.0082, amb: new THREE.Color(0x4f9fb4), ai: 0.5, key: 0.7 },
-      { p: 0.40, bg: new THREE.Color(0x082f4d), fog: 0.013,  amb: new THREE.Color(0x2c6f8c), ai: 0.32, key: 0.18 },
-      { p: 0.62, bg: new THREE.Color(0x04182f), fog: 0.018,  amb: new THREE.Color(0x214a64), ai: 0.18, key: 0.04 },
-      { p: 0.82, bg: new THREE.Color(0x020c18), fog: 0.024,  amb: new THREE.Color(0x12304a), ai: 0.10, key: 0 },
-      { p: 1.00, bg: new THREE.Color(0x01050b), fog: 0.030,  amb: new THREE.Color(0x0a2138), ai: 0.06, key: 0 },
+      { p: 0.40, bg: new THREE.Color(0x082f4d), fog: 0.012,  amb: new THREE.Color(0x2c6f8c), ai: 0.32, key: 0.18 },
+      { p: 0.62, bg: new THREE.Color(0x04182f), fog: 0.0145, amb: new THREE.Color(0x214a64), ai: 0.18, key: 0.04 },
+      { p: 0.82, bg: new THREE.Color(0x020c18), fog: 0.0175, amb: new THREE.Color(0x12304a), ai: 0.10, key: 0 },
+      { p: 1.00, bg: new THREE.Color(0x01050b), fog: 0.021,  amb: new THREE.Color(0x0a2138), ai: 0.06, key: 0 },
     ];
     const _c = new THREE.Color();
     function applyGrade(p) {
@@ -604,12 +752,22 @@
       rays.children.forEach(m => { m.material.opacity = (0.34 + 0.26 * Math.sin(t * 0.8 + m.userData.phase)) * rayFade; });
       rays.visible = rayFade > 0.01;
 
-      // marine snow drifts upward (we are sinking); closer layers drift faster (parallax)
-      snowLayers.forEach((s, li) => {
+      // marine snow streams upward (we are sinking) and wraps within a band
+      // around the camera, so the water is always full of suspended matter.
+      const camY = camera.position.y;
+      const top = camY + BAND * 0.32, bottom = top - BAND;
+      snowLayers.forEach(s => {
         const arr = s.pos.array;
-        const sp = dt * (0.25 + li * 0.18);
-        for (let i = 1; i < arr.length; i += 3) arr[i] += sp;
+        const sp = dt * s.drift;
+        for (let i = 1; i < arr.length; i += 3) {
+          arr[i] += sp;
+          if (arr[i] > top) { arr[i] = bottom; arr[i-1] = (Math.random() - 0.5) * s.spread; }
+        }
         s.pos.needsUpdate = true;
+        if (s.bioGlow) {                              // plankton: invisible up top, alive in the deep
+          s.pts.material.opacity = clamp((smooth - 0.18) / 0.3, 0, 1) * 0.95;
+          s.pts.material.size = 1.4 + 0.4 * Math.sin(t * 2.0);
+        }
       });
 
       // pulse emissive glows
@@ -620,6 +778,9 @@
         pu.glow.scale.setScalar(pu.base * (1 - pu.amp + pu.amp * 2 * v));
         pu.glow.material.opacity = 0.45 + 0.45 * v;
       }
+      // environment animations (schools, whale, etc.)
+      for (const fn of envUpdaters) fn(t, dt, camY);
+
       // sway drifters
       for (const s of swayers) {
         s.obj.position.x = s.baseX + Math.sin(t * s.sp + s.ph) * s.ax;
