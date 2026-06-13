@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Space+Mono:wght@400&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{width:1200px;height:630px;overflow:hidden;font-family:"Fraunces",serif;
+    background:radial-gradient(120% 130% at 50% -10%, #3aa6c2 0%, #1a6a90 16%, #0c3f63 38%, #06243f 58%, #03152a 76%, #01070f 100%);
+    color:#eaf6fa;position:relative}
+  /* god rays */
+  .ray{position:absolute;top:-60px;width:60px;height:520px;
+    background:linear-gradient(180deg,rgba(210,250,255,.5),rgba(180,240,255,0));
+    filter:blur(6px);transform-origin:top center}
+  .vig{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 30%, transparent 50%, rgba(0,0,0,.55) 100%)}
+  .wrap{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 96px;z-index:3}
+  .eyebrow{font-family:"Space Mono",monospace;font-size:18px;letter-spacing:.5em;color:#7fe9df;margin-bottom:30px;text-indent:.5em}
+  h1{font-size:140px;line-height:.86;font-weight:300}
+  h1 em{font-style:italic;font-weight:400}
+  .sub{font-family:"Space Mono",monospace;font-size:19px;letter-spacing:.18em;color:#9fc6cf;margin-top:34px}
+  .dot{position:absolute;right:150px;top:300px;width:54px;height:54px;border-radius:50%;background:#73f0d8;
+    box-shadow:0 0 60px 20px rgba(115,240,216,.6),0 0 140px 50px rgba(115,240,216,.25);z-index:2}
+  .marks{position:absolute;right:54px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:space-around;
+    font-family:"Space Mono",monospace;font-size:13px;color:#5b7d8c;letter-spacing:.1em;text-align:right;z-index:3;padding:54px 0}
+  .marks span{opacity:.7}
+</style></head>
+<body>
+  <div class="ray" style="left:180px;transform:rotate(6deg)"></div>
+  <div class="ray" style="left:360px;transform:rotate(-3deg);height:600px"></div>
+  <div class="ray" style="left:540px;transform:rotate(4deg);opacity:.6"></div>
+  <div class="dot"></div>
+  <div class="vig"></div>
+  <div class="wrap">
+    <div class="eyebrow">N&nbsp;&nbsp;48°&nbsp;DESCENT&nbsp;LOG</div>
+    <h1>Nathan<br><em>Hubbard</em></h1>
+    <div class="sub">ENGINEER &nbsp;·&nbsp; A PERSONAL SITE YOU DESCEND INTO</div>
+  </div>
+  <div class="marks"><span>0 m</span><span>1 km</span><span>3 km</span><span>6 km+</span></div>
+</body></html>

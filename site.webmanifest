@@ -1,0 +1,12 @@
+{
+  "name": "Nathan Hubbard — Abyssal",
+  "short_name": "Abyssal",
+  "description": "A personal site experienced as a descent into the deep ocean.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#02060c",
+  "theme_color": "#02060c",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

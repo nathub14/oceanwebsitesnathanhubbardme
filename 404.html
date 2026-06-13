@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lost at depth — Nathan Hubbard</title>
+<meta name="robots" content="noindex" />
+<meta name="theme-color" content="#02060c" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(120% 90% at 50% 12%, #06283a 0%, #03121f 38%, #01060d 100%);
+    color:#d7ecf3;font-family:"Fraunces",serif;font-weight:300;
+    min-height:100%;display:flex;align-items:center;justify-content:center;
+    text-align:center;padding:8vh 24px;overflow:hidden;position:relative;
+  }
+  .motes{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .mote{position:absolute;border-radius:50%;background:#73f0d8;
+    box-shadow:0 0 12px 2px rgba(115,240,216,.5);opacity:.5;
+    animation:rise linear infinite}
+  @keyframes rise{from{transform:translateY(0)}to{transform:translateY(-110vh)}}
+  .vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(0,0,0,.5) 100%)}
+  .wrap{position:relative;z-index:2;max-width:560px}
+  .code{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.5em;
+    color:#3fd0c8;text-indent:.5em;margin-bottom:34px}
+  h1{font-size:clamp(4rem,18vw,9rem);line-height:.9;font-weight:300}
+  h1 em{font-style:italic}
+  .depth{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.3em;
+    color:#5b7d8c;margin:18px 0 30px}
+  p{color:#8fb0be;font-size:clamp(1.05rem,2vw,1.3rem);margin-bottom:38px;line-height:1.6}
+  a.surface{display:inline-flex;align-items:center;gap:12px;font-family:"Space Mono",monospace;
+    font-size:11px;letter-spacing:.24em;text-transform:uppercase;text-decoration:none;
+    color:#02141a;background:#5fe0d8;padding:15px 26px;border-radius:4px;
+    transition:transform .25s,box-shadow .35s}
+  a.surface:hover{transform:translateY(-2px);box-shadow:0 0 34px -4px rgba(95,224,216,.6)}
+  @media (prefers-reduced-motion:reduce){.mote{animation:none;display:none}}
+</style>
+</head>
+<body>
+  <div class="motes" id="motes" aria-hidden="true"></div>
+  <div class="vignette"></div>
+  <div class="wrap">
+    <div class="code">S I G N A L &nbsp; L O S T</div>
+    <h1>4<em>0</em>4</h1>
+    <div class="depth">— PRESSURE NOMINAL · NO CHART FOR THIS DEPTH —</div>
+    <p>You've drifted past the edge of the map. Whatever you were looking for isn't down here. Let's get you back toward the light.</p>
+    <a class="surface" href="/">↑ Return to the surface</a>
+  </div>
+  <script>
+    // drifting bioluminescent motes
+    const box = document.getElementById('motes');
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      for (let i = 0; i < 26; i++) {
+        const m = document.createElement('div');
+        m.className = 'mote';
+        const s = 1 + Math.random() * 3;
+        m.style.width = m.style.height = s + 'px';
+        m.style.left = Math.random() * 100 + 'vw';
+        m.style.top = (100 + Math.random() * 30) + 'vh';
+        m.style.opacity = 0.2 + Math.random() * 0.5;
+        m.style.animationDuration = (10 + Math.random() * 22) + 's';
+        m.style.animationDelay = (-Math.random() * 22) + 's';
+        box.appendChild(m);
+      }
+    }
+  </script>
+</body>
+</html>

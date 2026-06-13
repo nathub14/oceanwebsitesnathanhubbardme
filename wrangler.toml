@@ -1,0 +1,6 @@
+name = "abyssal"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "."
+
+# Set RESEND_API_KEY (and optional CONTACT_TO / CONTACT_FROM) in the Cloudflare
+# Pages dashboard under Settings → Environment variables, not here.
