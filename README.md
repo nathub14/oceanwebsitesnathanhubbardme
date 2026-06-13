@@ -81,3 +81,5 @@ The fiction is real; the *content* is starter copy. Search-and-replace these:
   OG tags), `robots.txt`, and `sitemap.xml` with your real domain.
 - **OG image** — regenerate after edits: serve the site, then
   `node tools/og.html` workflow (see `tools/og.html`; screenshot it at 1200×630 → `og.png`).
+
+test
